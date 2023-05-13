@@ -47,19 +47,6 @@ jsonpath "$.id" == "2"
 jsonpath "$.title" == "What is the meaning of life?"
 jsonpath "$.content" == "42"
 
-
-PUT http://localhost:3030/questions
-
-Content-Type: application/json
-
-{
-  "id": "3",
-  "title": "What is the meaning of life?",
-  "content": "42"
-}
-
-HTTP 405
-
 PUT http://localhost:3030/questions/111
 
 Content-Type: application/json
@@ -105,3 +92,16 @@ HTTP 200
 [Asserts]
 jsonpath "$.id" == "1"
 jsonpath "$.content" == "42"
+
+
+POST http://localhost:3030/questions/1/answers
+
+Content-Type: application/json
+
+{
+  "content": "OK"
+}
+
+HTTP 201
+
+

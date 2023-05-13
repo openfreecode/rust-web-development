@@ -7,6 +7,9 @@ use warp::{
     Rejection, Reply,
 };
 
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Hash, Clone)]
+struct QuestionId(String);
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct Question {
     id: QuestionId,
@@ -16,17 +19,26 @@ struct Question {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Hash, Clone)]
-struct QuestionId(String);
+struct AnswerId(String);
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct Answer {
+    id: AnswerId,
+    content: String,
+    question_id: QuestionId,
+}
 
 #[derive(Clone)]
 struct Store {
     questions: Arc<RwLock<HashMap<QuestionId, Question>>>,
+    answers: Arc<RwLock<HashMap<AnswerId, Answer>>>,
 }
 
 impl Store {
     fn new() -> Self {
         Store {
             questions: Arc::new(RwLock::new(Store::init())),
+            answers: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -145,6 +157,39 @@ async fn delete_question(id: String, store: Store) -> Result<impl warp::Reply, w
     }
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct Answerx {
+    content: String,
+}
+
+async fn add_answer(
+    question_id: String,
+    answer: Answerx,
+    store: Store,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    store
+        .questions
+        .read()
+        .await
+        .get(&QuestionId(question_id.to_string()))
+        .ok_or(Error::QuestionNotFound)?;
+
+    let answer = Answer {
+        id: AnswerId(uuid::Uuid::new_v4().to_string()),
+        content: answer.content,
+        question_id: QuestionId(question_id.to_string()),
+    };
+    store
+        .answers
+        .write()
+        .await
+        .insert(answer.id.clone(), answer);
+    Ok(warp::reply::with_status(
+        "Answer added",
+        warp::http::StatusCode::CREATED,
+    ))
+}
+
 async fn return_error(err: warp::Rejection) -> Result<impl Reply, Rejection> {
     println!("err: {:?}", err);
     let code;
@@ -224,11 +269,19 @@ async fn main() {
         .and(store_filter.clone())
         .and_then(delete_question);
 
+    let add_answer = warp::post()
+        .and(warp::path!("questions" / String / "answers"))
+        .and(warp::path::end())
+        .and(warp::body::json())
+        .and(store_filter.clone())
+        .and_then(add_answer);
+
     let routes = get_questions
         .or(get_question)
         .or(add_question)
         .or(update_question)
         .or(delete_question)
+        .or(add_answer)
         .with(cors)
         .recover(return_error);
 
